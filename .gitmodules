@@ -1,0 +1,6 @@
+[submodule "src/jotawm"]
+	path = src/jotawm
+	url = git@github.com:Jotalea/jotawm.git
+[submodule "src/jotafetch"]
+	path = src/jotafetch
+	url = git@github.com:Jotalea/jotafetch.git
