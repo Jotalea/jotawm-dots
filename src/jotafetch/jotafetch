@@ -1,0 +1,64 @@
+#!/bin/bash
+# jotafetch: a neofetch-like utility made by Jotalea
+if [ -f /etc/os-release ]; then
+    source /etc/os-release
+else
+    NAME="Unknown OS"
+fi
+host=$(hostname 2>/dev/null)
+[[ -z "$host" && -f "$PREFIX/etc/hostname" ]] && host=$(cat $PREFIX/etc/hostname)
+info_user="$(whoami)@${host:-localhost}"
+
+info_os="os: $NAME"
+info_kernel="kernel: $(uname -r)"
+shell_bin=$(basename "$(readlink /proc/$$/exe)")
+info_shell="shell: $(${shell_bin} --version 2>/dev/null | head -n 1)"
+
+cpu_name=$(grep -m1 "model name" /proc/cpuinfo | cut -d: -f2- | xargs)
+[[ -z "$cpu_name" ]] && cpu_name=$(grep -m1 "Hardware" /proc/cpuinfo | cut -d: -f2- | xargs)
+info_cpu="cpu: ${cpu_name:-unknown CPU}"
+
+calc() {
+    awk "BEGIN { printf \"%.2f\", $1 }"
+}
+
+mem_raw=$(free -k | grep Mem:)
+mem_total_kb=$(echo "$mem_raw" | awk '{print $2}')
+mem_used_kb=$(echo "$mem_raw" | awk '{print $3}')
+
+mem_total_gb=$(calc "$mem_total_kb / 1024 / 1024")
+mem_used_gb=$(calc "$mem_used_kb / 1024 / 1024")
+
+mem_percent=$((mem_used_kb * 100 / mem_total_kb))
+info_mem="memory: $mem_used_gb GB / $mem_total_gb GB ($mem_percent%)"
+info_uptime=$(uptime -p | sed 's/^up/uptime:/')
+
+logo=(
+"     \u2588\u2588     "
+"     \u2588\u2588  \u2588\u2588 "
+"     \u2588\u2588  \u2588\u2588 "
+"     \u2588\u2588  \u2588\u2588 "
+" \u2588\u2588  \u2588\u2588  \u2588\u2588 "
+" \u2580\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2580 "
+"     \u2588\u2588     "
+)
+info=("$info_user" "$info_os" "$info_kernel" "$info_shell" "$info_cpu" "$info_mem" "$info_uptime")
+get_cols() {
+    # Use stty, tput, or default to 80
+    stty size 2>/dev/null | awk '{print $2}' || tput cols 2>/dev/null || echo 80
+}
+max_info_width=$(( $(get_cols) - 12 )) # 12 is the logo width
+
+reset="\e[0m"
+color="\e[38;2;135;255;94m"
+for i in {0..6}; do
+    line="${info[$i]}"
+    # printf "${color}%b${reset} %.${max_info_width}s\n" "${logo[$i]}" "$line"
+    if [ "$i" -eq 0 ]; then
+        # Apply underline + color
+        printf "${color}%b${reset} \e[4m${color}%.${max_info_width}s${reset}\n" "${logo[$i]}" "$line"
+    else
+        # Just apply color
+        printf "${color}%b${reset} %.${max_info_width}s\n" "${logo[$i]}" "$line"
+    fi
+done
