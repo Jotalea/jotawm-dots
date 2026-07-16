@@ -1,5 +1,7 @@
 #!/bin/bash
 
+~/.jotalea/scripts/battery.sh &
+
 killall -q polybar picom
 while pgrep -u $USER -x polybar >/dev/null; do sleep 1; done
 

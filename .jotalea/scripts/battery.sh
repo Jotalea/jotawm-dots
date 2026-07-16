@@ -1,50 +1,60 @@
-#!/bin/bash
+#!/bin/sh
 
-# Battery notification thresholds
-THRESHOLDS=(20 15 10 5)
-NOTIFIED=()
+for b in /sys/class/power_supply/bat*; do
+    [ -d "$b" ] && bat="$b" && break
+done
 
-# Function to check battery status
-check_battery() {
-    # Get battery percentage (remove % sign)
-    local battery_percent=$(cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || echo "100")
-    local status=$(cat /sys/class/power_supply/BAT0/status 2>/dev/null || echo "Unknown")
-    
-    echo $battery_percent $status
-}
+[ -z "$bat" ] && exit 1
 
-# Function to send notification
-send_notification() {
-    local level=$1
-    local percent=$2
-    local urgency="normal"
-    
-    case $level in
-        5) urgency="critical" ;;
-        10) urgency="critical" ;;
-        *) urgency="normal" ;;
-    esac
-    
-    notify-send -u $urgency "Battery Low" "Battery is at ${percent}%!\nPlug in your charger soon." -i battery-low
-}
+n20=0
+n10=0
+n5=0
+n1=0
+n90=0
+n100=0
 
-# Main monitoring loop
 while true; do
-    read percent status < <(check_battery)
-    if [ "$status" = "Discharging" ]; then
-        for threshold in "${THRESHOLDS[@]}"; do
-            if [[ ! " ${NOTIFIED[@]} " =~ " ${threshold} " ]] && [ "$percent" -le "$threshold" ]; then
-                send_notification $threshold $percent
-                NOTIFIED+=($threshold)
-                if [ "$threshold" -le 10 ]; then
-                    paplay /usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga 2>/dev/null || true
-                fi
-            fi
-        done
+    c=$(cat "$bat/capacity")
+    s=$(cat "$bat/status")
+
+    if [ "$s" = "Discharging" ]; then
+        n90=0
+        n100=0
+
+        if [ "$c" -le 1 ] && [ "$n1" -eq 0 ]; then
+            notify-send -u critical "PLEASEEE" "im dying senpai, plug it in..."
+            n1=1
+            n5=1
+            n10=1
+            n20=1
+        elif [ "$c" -le 5 ] && [ "$n5" -eq 0 ]; then
+            notify-send -u critical "battery critical" "5% remaining. plug in immediately."
+            n5=1
+            n10=1
+            n20=1
+        elif [ "$c" -le 10 ] && [ "$n10" -eq 0 ]; then
+            notify-send -u critical "battery low" "10% remaining. plug in soon."
+            n10=1
+            n20=1
+        elif [ "$c" -le 20 ] && [ "$n20" -eq 0 ]; then
+            notify-send -u normal "battery warning" "20% remaining."
+            n20=1
+        fi
     else
-        # If charging, reset notifications
-        NOTIFIED=()
+        n20=0
+        n10=0
+        n5=0
+        n1=0
+
+        if [ "$c" -ge 100 ] && [ "$n100" -eq 0 ]; then
+            notify-send -u normal "battery full" "100% charged. you can unplug."
+            n100=1
+            n90=1
+        elif [ "$c" -ge 90 ] && [ "$n90" -eq 0 ]; then
+            notify-send -u normal "battery optimal" "90% charged. consider unplugging."
+            n90=1
+        fi
     fi
-    
-    sleep 60  # Check every minute
+
+    sleep 60
 done
